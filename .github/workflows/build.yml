@@ -1,0 +1,46 @@
+name: Build APK
+on: workflow_dispatch
+
+env:
+  SB_TAG: v1.14.3   # troca pela mesma tag do SFA que forkaste
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: sing-box-for-android, submodules: recursive }
+
+      - uses: actions/checkout@v4
+        with:
+          repository: SagerNet/sing-box
+          ref: ${{ env.SB_TAG }}
+          path: sing-box
+
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+
+      - uses: actions/setup-go@v5
+        with: { go-version-file: sing-box/go.mod }
+
+      - name: NDK
+        run: |
+          yes | sdkmanager --install "ndk;28.0.12433566"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.0.12433566" >> $GITHUB_ENV
+
+      - name: Build libbox
+        working-directory: sing-box
+        run: |
+          mkdir -p ../sing-box-for-android/app/libs
+          make lib_install
+          make lib_android
+          ls -la ../sing-box-for-android/app/libs
+
+      - name: Build APK (debug)
+        working-directory: sing-box-for-android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: sing-box-for-android/app/build/outputs/apk/**/*.apk
